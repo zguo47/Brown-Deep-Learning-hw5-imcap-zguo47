@@ -29,6 +29,7 @@ class ImageCaptionModel(tf.keras.Model):
         :param padding_index: the padding index, the id of *PAD* token. This integer is used when masking padding labels.
         :return: None
         """
+        num_batches = int(len(train_captions) / batch_size)
 
         ## TODO: Implement similar to test below.
 
@@ -39,9 +40,48 @@ class ImageCaptionModel(tf.keras.Model):
         ## NOTE: make sure you are calculating gradients and optimizing as appropriate
         ##       (similar to batch_step from HW2)
 
-        avg_loss = 0
-        avg_acc = 0
-        avg_prp = 0      
+        index = tf.random.shuffle(range(len(train_captions)))
+        train_captions = tf.gather(train_captions, index)
+        train_image_features = tf.gather(train_image_features, index)
+
+        total_loss = total_seen = total_correct = 0
+        for index, end in enumerate(range(batch_size, len(train_captions)+1, batch_size)):
+
+            # NOTE: 
+            # - The captions passed to the decoder should have the last token in the window removed:
+            #	 [<START> student working on homework <STOP>] --> [<START> student working on homework]
+            #
+            # - When computing loss, the decoder labels should have the first word removed:
+            #	 [<START> student working on homework <STOP>] --> [student working on homework <STOP>]
+
+            ## Get the current batch of data, making sure to try to predict the next word
+            start = end - batch_size
+            batch_image_features = train_image_features[start:end, :]
+            decoder_input = train_captions[start:end, :-1]
+            decoder_labels = train_captions[start:end, 1:]
+
+            ## Perform a training forward pass. Make sure to factor out irrelevant labels.
+
+            with tf.GradientTape() as tape:
+                probs = self(batch_image_features, decoder_input)
+                mask = decoder_labels != padding_index
+                num_predictions = tf.reduce_sum(tf.cast(mask, tf.float32))
+                loss = self.loss_function(probs, decoder_labels, mask)
+                grads = tape.gradient(loss, self.trainable_variables)
+                self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
+            accuracy = self.accuracy_function(probs, decoder_labels, mask)
+
+            ## Compute and report on aggregated statistics
+            total_loss += loss
+            total_seen += num_predictions
+            total_correct += num_predictions * accuracy
+
+            avg_loss = float(total_loss / total_seen)
+            avg_acc = float(total_correct / total_seen)
+            avg_prp = np.exp(avg_loss)
+            print(f"\r[Valid {index+1}/{num_batches}]\t loss={avg_loss:.3f}\t acc: {avg_acc:.3f}\t perp: {avg_prp:.3f}", end='')
+
+        print()             
         return avg_loss, avg_acc, avg_prp
 
     def test(self, test_captions, test_image_features, padding_index, batch_size=30):
