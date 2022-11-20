@@ -19,7 +19,7 @@ class RNNDecoder(tf.keras.layers.Layer):
 
         # Define feed forward layer to embed image features into a vector 
         # with the models hidden size
-        self.image_embedding = tf.keras.layers.Dense(self.hidden_size, activation='softmax', dtype = 'float32')
+        self.image_embedding = tf.keras.layers.Dense(self.hidden_size, dtype = 'float32')
 
         # Define english embedding layer:
         self.embedding = tf.keras.layers.Embedding(self.vocab_size, self.hidden_size)
