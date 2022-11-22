@@ -134,8 +134,8 @@ class TransformerBlock(tf.keras.layers.Layer):
             tf.keras.layers.Dropout(0.1)
         ])
 
-        self.self_atten         = AttentionHead(emb_sz, emb_sz, True)  if not MultiHeadedAttention else MultiHeadedAttention(emb_sz, True)
-        self.self_context_atten = AttentionHead(emb_sz, emb_sz, False) if not MultiHeadedAttention else MultiHeadedAttention(emb_sz, False)
+        self.self_atten         = AttentionHead(emb_sz, emb_sz, True) 
+        self.self_context_atten = AttentionHead(emb_sz, emb_sz, False) 
         self.layer_norm = tf.keras.layers.LayerNormalization()
 
     @tf.function
