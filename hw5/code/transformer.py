@@ -60,9 +60,10 @@ class AttentionHead(tf.keras.layers.Layer):
         # TODO:
         # Initialize the weight matrices for K, V, and Q.
         # They should be able to multiply an input_size vector to produce an output_size vector
-        self.K = tf.random.uniform((input_size, output_size), 0, 1, dtype=tf.float32)
-        self.V = tf.random.uniform((input_size, output_size), 0, 1, dtype=tf.float32)
-        self.Q = tf.random.uniform((input_size, output_size), 0, 1, dtype=tf.float32)
+        self.K = self.add_weight("W_K", (input_size, output_size))
+        self.Q = self.add_weight("W_Q", (input_size, output_size))
+        self.V = self.add_weight("W_V", (input_size, output_size))
+        self.attn_mtx = AttentionMatrix(use_mask = self.use_mask)
 
     @tf.function
     def call(self, inputs_for_keys, inputs_for_values, inputs_for_queries):
@@ -87,7 +88,7 @@ class AttentionHead(tf.keras.layers.Layer):
         V = tf.tensordot(inputs_for_values, self.V, axes=1)
         Q = tf.tensordot(inputs_for_queries, self.Q, axes=1)
 
-        layer = AttentionMatrix()((K,Q))
+        layer = self.attn_mtx((K,Q))
         val = tf.matmul(layer, V)
 
         return val
@@ -129,7 +130,7 @@ class TransformerBlock(tf.keras.layers.Layer):
         # 2) For 2470 students, use multiheaded attention
 
         self.ff_layer = tf.keras.Sequential([
-            tf.keras.layers.Dense(emb_sz, activation='relu'),
+            tf.keras.layers.Dense(2048, activation='relu'),
             tf.keras.layers.Dense(emb_sz),
             tf.keras.layers.Dropout(0.1)
         ])
