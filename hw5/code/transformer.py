@@ -45,7 +45,11 @@ class AttentionMatrix(tf.keras.layers.Layer):
         # This can be thought of as: for every query word, how much should I pay attention to the other words in this window?
         # Those weights are then used to create linear combinations of the corresponding values for each query.
         # Those queries will become the new embeddings. Return attention score as per lecture slides.
-        return None
+        score = tf.matmul(Q, K, transpose_b=True)/math.sqrt(window_size_keys)
+        if self.use_mask == True:
+            score += atten_mask
+        dist = tf.nn.softmax(score)
+        return dist
 
 
 class AttentionHead(tf.keras.layers.Layer):
@@ -56,7 +60,9 @@ class AttentionHead(tf.keras.layers.Layer):
         # TODO:
         # Initialize the weight matrices for K, V, and Q.
         # They should be able to multiply an input_size vector to produce an output_size vector
-
+        self.K = tf.random.uniform((input_size, output_size), 0, 1, dtype=tf.float32)
+        self.V = tf.random.uniform((input_size, output_size), 0, 1, dtype=tf.float32)
+        self.Q = tf.random.uniform((input_size, output_size), 0, 1, dtype=tf.float32)
 
     @tf.function
     def call(self, inputs_for_keys, inputs_for_values, inputs_for_queries):
@@ -77,11 +83,14 @@ class AttentionHead(tf.keras.layers.Layer):
         # - Call your AttentionMatrix layer with the keys and queries.
         # - Apply the attention matrix to the values.
 
-        K = None
-        V = None
-        Q = None
+        K = tf.tensordot(inputs_for_keys, self.K, axes=0)
+        V = tf.tensordot(inputs_for_values, self.V, axes=0)
+        Q = tf.tensordot(inputs_for_queries, self.Q, axes=0)
 
-        return None
+        layer = AttentionMatrix()((K,Q))
+        val = tf.matmul(layer, V)
+
+        return val
 
 
 class MultiHeadedAttention(tf.keras.layers.Layer):
@@ -119,11 +128,15 @@ class TransformerBlock(tf.keras.layers.Layer):
         # 1) Define the Feed Forward, self-attention, encoder-decoder-attention, and layer normalization layers
         # 2) For 2470 students, use multiheaded attention
 
-        self.ff_layer = None
+        self.ff_layer = tf.keras.Sequential([
+            tf.keras.layers.Dense(emb_sz, activation='relu'),
+            tf.keras.layers.Dense(emb_sz),
+            tf.keras.layers.Dropout(0.1)
+        ])
 
         self.self_atten         = AttentionHead(emb_sz, emb_sz, True)  if not MultiHeadedAttention else MultiHeadedAttention(emb_sz, True)
         self.self_context_atten = AttentionHead(emb_sz, emb_sz, False) if not MultiHeadedAttention else MultiHeadedAttention(emb_sz, False)
-        self.layer_norm = None
+        self.layer_norm = tf.keras.layers.LayerNormalization()
 
     @tf.function
     def call(self, inputs, context_sequence):
@@ -146,7 +159,19 @@ class TransformerBlock(tf.keras.layers.Layer):
         :param context_sequence: tensor of shape [BATCH_SIZE x CONTEXT_SEQ_LENGTH x EMBEDDING_SIZE ]
         :return: tensor of shape [BATCH_SIZE x INPUT_SEQ_LENGTH x EMBEDDING_SIZE ]
         """
-        return None
+        masked_input = self.self_atten(inputs, inputs, inputs)
+        masked_input = tf.keras.layers.Add()([inputs, masked_input])
+        masked_input = self.layer_norm(masked_input)
+
+        unmasked_input = self.self_context_atten(masked_input, context_sequence, context_sequence)
+        unmasked_input = tf.keras.layers.Add()([masked_input, unmasked_input])
+        unmasked_input = self.layer_norm(unmasked_input)  
+
+        ff_input = self.ff_layer(unmasked_input) 
+        ff_input = tf.keras.layers.Add()([unmasked_input, ff_input])
+        ff_input = self.layer_norm(ff_input)
+
+        return tf.nn.relu(ff_input)
 
 
 def positional_encoding(length, depth):
@@ -176,12 +201,17 @@ class PositionalEncoding(tf.keras.layers.Layer):
         ## TODO: Implement Components
 
         ## Embed labels into an optimizable embedding space
-        self.embedding = None
+        self.embedding = tf.keras.layers.Embedding(vocab_size, embed_size)
 
         ## Implement sinosoidal positional encoding: offset by varying sinosoidal frequencies. 
         ## HINT: May want to use the function above...
-        self.pos_encoding = None
+        self.pos_encoding = positional_encoding(window_size, embed_size)
 
     def call(self, x):
         ## TODO: Get embeddings and and scale them by sqrt of embedding size, and add positional encoding.
-        return None
+        length  = tf.shape(x)[1]
+        embedded_input = self.embedding(x)
+        embedded_input *= tf.math.sqrt(tf.cast(self.embed_size, tf.float32))
+        embedded_input  = embedded_input + self.pos_encoding[tf.newaxis, :length, :]
+
+        return embedded_input
