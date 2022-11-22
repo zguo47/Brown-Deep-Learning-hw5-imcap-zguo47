@@ -83,9 +83,9 @@ class AttentionHead(tf.keras.layers.Layer):
         # - Call your AttentionMatrix layer with the keys and queries.
         # - Apply the attention matrix to the values.
 
-        K = tf.tensordot(inputs_for_keys, self.K, axes=0)
-        V = tf.tensordot(inputs_for_values, self.V, axes=0)
-        Q = tf.tensordot(inputs_for_queries, self.Q, axes=0)
+        K = tf.tensordot(inputs_for_keys, self.K, axes=1)
+        V = tf.tensordot(inputs_for_values, self.V, axes=1)
+        Q = tf.tensordot(inputs_for_queries, self.Q, axes=1)
 
         layer = AttentionMatrix()((K,Q))
         val = tf.matmul(layer, V)
@@ -163,7 +163,7 @@ class TransformerBlock(tf.keras.layers.Layer):
         masked_input = tf.keras.layers.Add()([inputs, masked_input])
         masked_input = self.layer_norm(masked_input)
 
-        unmasked_input = self.self_context_atten(masked_input, context_sequence, context_sequence)
+        unmasked_input = self.self_context_atten(context_sequence, context_sequence, masked_input)
         unmasked_input = tf.keras.layers.Add()([masked_input, unmasked_input])
         unmasked_input = self.layer_norm(unmasked_input)  
 

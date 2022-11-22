@@ -76,8 +76,6 @@ class TransformerDecoder(tf.keras.Model):
         # 4) Apply dense layer(s) to the decoder out to generate logits
         encoded_images = self.image_embedding(tf.expand_dims(encoded_images, 1))
         captions = self.encoding(captions)
-        print(captions.shape)
-        print(encoded_images.shape)
 
         decoded_output = self.decoder(captions, encoded_images)
         probs = self.classifier(decoded_output)
